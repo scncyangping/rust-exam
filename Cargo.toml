@@ -3,6 +3,7 @@
 members = [
     "convert",
     "fib",
-    "owner"
+    "owner",
+    "rc",
 ]
 
