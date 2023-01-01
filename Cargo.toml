@@ -6,6 +6,7 @@ members = [
     "owner",
     "rc",
     "refCell",
-    "life"
+    "life",
+    "type_system"
 ]
 
