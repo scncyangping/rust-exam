@@ -1,4 +1,4 @@
-use std::io::{BufWriter, Write};
+use std::io::{Write};
 use std::net::TcpStream;
 
 #[derive(Debug)]
@@ -19,7 +19,6 @@ impl<W: Write> MyWriter<W> {
 fn main() {
     let stream = TcpStream::connect("127.0.0.1:9090").unwrap();
     let mut writer = MyWriter::new(stream);
-    println!("stream: {:?}", stream);
     match writer.write("hello world!") {
         Ok(_) => println!("ok"),
         Err(e) => println!("error: {}", e),
