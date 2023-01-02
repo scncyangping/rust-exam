@@ -9,5 +9,6 @@ members = [
     "life",
     "type_system",
     "trait_exam",
+    "arc",
 ]
 
