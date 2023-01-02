@@ -7,6 +7,7 @@ members = [
     "rc",
     "refCell",
     "life",
-    "type_system"
+    "type_system",
+    "trait_exam",
 ]
 
