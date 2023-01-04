@@ -10,5 +10,6 @@ members = [
     "type_system",
     "trait_exam",
     "arc",
+    "mystring",
 ]
 
