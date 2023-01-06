@@ -11,6 +11,7 @@ members = [
     "trait_exam",
     "arc",
     "mystring",
-    "mymap"
+    "mymap",
+    "closure",
 ]
 
