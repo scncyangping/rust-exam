@@ -13,6 +13,7 @@ members = [
     "mystring",
     "mymap",
     "closure",
-    "kv"
+    "kv",
+    "cs"
 ]
 
