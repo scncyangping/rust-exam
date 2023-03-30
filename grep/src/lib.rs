@@ -25,10 +25,16 @@ impl Config {
     }
 }
 
-pub fn run(query: String, filename: String) -> Result<(), Box<dyn Error>> {
+pub fn run(query: String, filename: String, upper: bool) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(filename)?;
 
-    for ele in search(query.as_str(), &contents) {
+    let result = if upper {
+        search(query.as_str(), &contents)
+    } else {
+        search_upper(query.as_str(), &contents)
+    };
+
+    for ele in result {
         println!("{}", ele);
     }
 
@@ -45,6 +51,18 @@ pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
     results
 }
 
+pub fn search_upper<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let query = query.to_uppercase();
+    let mut results: Vec<&str> = Vec::new();
+
+    for line in contents.lines() {
+        if line.to_uppercase().contains(&query) {
+            results.push(line);
+        }
+    }
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -52,11 +70,11 @@ mod tests {
     fn test_search() {
         let query = "mod tests";
         let contents = "
-mod tests {
+    mod tests {
 #[test]
 fn test_search() {
-let contents = 
-";
-        assert_eq!(vec!["mod tests {"],search(query, contents))
+    let contents = 
+    ";
+        assert_eq!(vec!["mod tests {"], search(query, contents))
     }
 }
