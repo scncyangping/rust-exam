@@ -16,6 +16,7 @@ members = [
     "kv",
     "cs",
     "mpsc",
-    "con_utils"
+    "con_utils",
+    "grep"
 ]
 
