@@ -44,3 +44,19 @@ pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
     }
     results
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_search() {
+        let query = "mod tests";
+        let contents = "
+mod tests {
+#[test]
+fn test_search() {
+let contents = 
+";
+        assert_eq!(vec!["mod tests {"],search(query, contents))
+    }
+}
