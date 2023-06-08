@@ -30,4 +30,8 @@ fn main() {
     node2.set_down_stream(node1.get_down_stream().unwrap());
 
     print!("node1: {:?} node2: {:?}", node1, node2);
+
+    if let Some(node1) = node1.1 {
+        print!("\n{:?}\n", node1)
+    }
 }
