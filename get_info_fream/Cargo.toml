@@ -1,0 +1,21 @@
+[package]
+name = "get_info_fream"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytes = "1.5.0"
+futures = "0.3.29"
+tokio = { version = "1.35.1", features = ["full"] }
+tokio-util = { version = "0.7.10", features = ["full"] }
+
+
+[[bin]]
+name="server1"
+path= "src/server1.rs"
+
+[[bin]]
+name="client1"
+path= "src/client1.rs"
