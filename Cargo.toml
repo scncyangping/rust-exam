@@ -17,6 +17,10 @@ members = [
     "cs",
     "mpsc",
     "con_utils",
-    "grep"
+    "grep",
+    "match_default",
+    "getinfo",
+    "get_info_fream",
+    "tokio_sync"
 ]
 
