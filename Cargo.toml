@@ -21,6 +21,7 @@ members = [
     "match_default",
     "getinfo",
     "get_info_fream",
-    "tokio_sync"
+    "tokio_sync",
+    "error_check"
 ]
 
