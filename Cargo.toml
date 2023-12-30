@@ -22,6 +22,7 @@ members = [
     "getinfo",
     "get_info_fream",
     "tokio_sync",
-    "error_check"
+    "error_check",
+    "micro"
 ]
 
