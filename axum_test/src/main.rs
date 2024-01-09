@@ -13,8 +13,8 @@ async fn main() {
     let app = Router::new()
         .route("/", get(handler))
         .route("/query", get(query))
-        .nest_service("/assets", ServeDir::new("assets"))
         .nest_service("/assets2", serve_dir.clone())
+        .nest_service("/assets", ServeDir::new("assets"))
         .fallback_service(serve_dir)
         .layer(TraceLayer::new_for_http());
 
