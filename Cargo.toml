@@ -25,6 +25,7 @@ members = [
     "tokio_sync",
     "error_check",
     "micro",
-    "axum_test"
+    "axum_test",
+    "leet_code"
 ]
 
