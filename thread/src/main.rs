@@ -1,4 +1,5 @@
 mod self_mod;
-fn main() {
-    self_mod::barrier::wait_all_execute()
+#[tokio::main]
+async fn main() {
+    self_mod::barrier::thread_semaphore().await;
 }
