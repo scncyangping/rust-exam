@@ -30,6 +30,7 @@ members = [
     "project",
     "minigrep",
     "self_ref",
-    "thread"
+    "thread",
+    "http_web"
 ]
 
