@@ -26,6 +26,10 @@ members = [
     "error_check",
     "micro",
     "axum_test",
-    "leet_code"
+    "leet_code",
+    "project",
+    "minigrep",
+    "self_ref",
+    "thread"
 ]
 

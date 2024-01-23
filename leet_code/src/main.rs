@@ -1,15 +1,34 @@
 use std::collections::HashMap;
-
 fn main() {
-    let rs = two_sum(vec![3, 3], 6);
+    let rs = remove_element(&mut vec![2, 1, 3, 3], 2);
     println!("{:?}", rs);
-
-    match 1 {
-        num @ (1 | 2) => {
-            println!("{}", num);
+}
+// 027移除元素
+// 给你一个数组 nums 和一个值 val，你需要 原地
+// 移除所有数值等于 val 的元素，并返回移除后数组的新长度
+pub fn remove_element(nums: &mut Vec<i32>, val: i32) -> i32 {
+    let mut index = 0;
+    for pos in 0..nums.len() {
+        if nums[pos] != val {
+            nums[index] = nums[pos];
+            index += 1;
         }
-        _ => {}
     }
+    return index as i32;
+    // 待插入位置索引
+    // let mut index = 0;
+    // let mut p = 0;
+    // while p < nums.len() {
+    //     if nums[p] == val {
+    //         p += 1;
+    //         continue;
+    //     } else {
+    //         nums[index] = nums[p];
+    //         index += 1
+    //     }
+    //     p += 1;
+    // }
+    // index as i32
 }
 
 pub fn merge(nums1: &mut Vec<i32>, m: i32, nums2: &mut Vec<i32>, n: i32) {

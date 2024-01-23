@@ -10,3 +10,10 @@ Cargo.lock
 **/*.rs.bk
 **/target/
 **/*.md
+
+.idea/*
+.vscode/*
+.DS_Store
+*.log
+*.yaml
+go.sum
