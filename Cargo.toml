@@ -31,6 +31,7 @@ members = [
     "minigrep",
     "self_ref",
     "thread",
-    "http_web"
+    "http_web",
+    "my_redis"
 ]
 
