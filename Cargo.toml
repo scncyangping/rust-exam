@@ -32,6 +32,7 @@ members = [
     "self_ref",
     "thread",
     "http_web",
-    "my_redis"
+    "my_redis",
+    "test-tracing"
 ]
 
