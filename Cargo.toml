@@ -33,6 +33,7 @@ members = [
     "thread",
     "http_web",
     "my_redis",
-    "test-tracing"
+    "test-tracing",
+    "lists"
 ]
 
