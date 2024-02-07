@@ -34,6 +34,7 @@ members = [
     "http_web",
     "my_redis",
     "test-tracing",
-    "lists"
+    "lists",
+    "web01"
 ]
 
