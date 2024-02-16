@@ -11,7 +11,7 @@ fn arc_mutex_is_send_sync() {
     let handle = thread::spawn(move || {
         println!("c is execute");
         let mut g = c.lock().unwrap();
-        *g += 1;
+        *g += 10;
     });
     {
         println!("b is execute");
