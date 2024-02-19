@@ -65,6 +65,10 @@ fn main() {
     call_once(c);
     call_once(c1);
 
+    let c3 = |num: u32| num * 2;
+
+    call_once_num(12, c3);
+
     let mut cache = Cache::new(|num| num * 2);
     println!("{}", cache.execute(1));
     println!("{}", cache.execute(2));
@@ -78,6 +82,10 @@ fn call_mut(c: &mut impl FnMut()) {
 
 fn call_once(c: impl FnOnce()) {
     c();
+}
+
+fn call_once_num(num: u32, c: impl FnOnce(u32) -> u32) {
+    c(num);
 }
 
 fn pri(name: &str) {
