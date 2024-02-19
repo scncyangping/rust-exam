@@ -9,36 +9,36 @@ use std::env;
 //          其名称的 Once 部分代 表了闭包不能多次获取相同变量的所有权的事实，所以它只能被调用一次。
 // • FnMut 获取可变的借用值所以可以改变其环境
 // • Fn 从其环境获取不可变的借用值
-struct Cacher<T>
-where
-    T: Fn(u32) -> u32,
-{
-    calculation: T,
-    value: Option<u32>,
-}
-
-impl<T> Cacher<T>
-where
-    T: Fn(u32) -> u32,
-{
-    fn new(calculation: T) -> Cacher<T> {
-        Cacher {
-            calculation: calculation,
-            value: None,
-        }
-    }
-
-    fn value(&mut self, arg: u32) -> u32 {
-        match self.value {
-            Some(v) => v,
-            None => {
-                let v = (self.calculation)(arg);
-                self.value = Some(v);
-                v
-            }
-        }
-    }
-}
+// struct Cacher<T>
+// where
+//     T: Fn(u32) -> u32,
+// {
+//     calculation: T,
+//     value: Option<u32>,
+// }
+//
+// impl<T> Cacher<T>
+// where
+//     T: Fn(u32) -> u32,
+// {
+//     fn new(calculation: T) -> Cacher<T> {
+//         Cacher {
+//             calculation: calculation,
+//             value: None,
+//         }
+//     }
+//
+//     fn value(&mut self, arg: u32) -> u32 {
+//         match self.value {
+//             Some(v) => v,
+//             None => {
+//                 let v = (self.calculation)(arg);
+//                 self.value = Some(v);
+//                 v
+//             }
+//         }
+//     }
+// }
 
 fn main() {
     let x = Box::new(String::from("value"));
@@ -62,10 +62,13 @@ fn main() {
     c1();
     call_mut(&mut c);
     call_mut(&mut c1);
-
     call_once(c);
-
     call_once(c1);
+
+    let mut cache = Cache::new(|num| num * 2);
+    println!("{}", cache.execute(1));
+    println!("{}", cache.execute(2));
+    println!("{}", cache.execute(3));
 }
 
 // 在作为参数时，FnMut也要显示地使用 mut 或者 &mut
@@ -79,4 +82,41 @@ fn call_once(c: impl FnOnce()) {
 
 fn pri(name: &str) {
     println!("{}", name);
+}
+
+// 定义一个缓存器,每次调用增加指定步长
+
+struct Cache<T>
+where
+    T: Fn(u32) -> u32,
+{
+    value: Option<u32>,
+    func: T,
+}
+
+// 定义方法
+impl<T> Cache<T>
+where
+    T: Fn(u32) -> u32,
+{
+    fn new(f: T) -> Self {
+        Cache {
+            value: None,
+            func: f,
+        }
+    }
+
+    fn execute(&mut self, num: u32) -> u32 {
+        match self.value {
+            None => {
+                self.value = Some(num);
+                num
+            }
+            Some(a) => {
+                let rs = a + (&self.func)(num);
+                self.value = Some(rs);
+                rs
+            }
+        }
+    }
 }
