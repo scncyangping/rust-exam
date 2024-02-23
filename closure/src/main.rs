@@ -70,8 +70,11 @@ fn main() {
     call_once_num(12, c3);
 
     let mut cache = Cache::new(|num| num * 2);
+    let mut cache = Cache::new(|num| num * 21);
     println!("{}", cache.execute(1));
     println!("{}", cache.execute(2));
+    println!("{}", cache.execute(3));
+    let mut cache = Cache::new(|num| num * 21);
     println!("{}", cache.execute(3));
 }
 
