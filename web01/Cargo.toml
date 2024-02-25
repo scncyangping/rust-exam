@@ -16,3 +16,6 @@ tower-http = {version = "0.5.0",features = ["trace","util","request-id"]}
 tower = "0.4.13"
 sqlx = {version = "0.7",features = ["runtime-tokio","tls-rustls","mysql"]}
 dotenvy = "0.15"
+jsonwebtoken="9"
+anyhow= "1.0"
+time={version = "0.3",features = ["serde-human-readable"]}
