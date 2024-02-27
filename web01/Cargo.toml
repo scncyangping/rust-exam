@@ -21,3 +21,7 @@ jsonwebtoken="9"
 anyhow= "1.0"
 time={version = "0.3",features = ["serde-human-readable"]}
 askama="0.12"
+matchit = "0.7.3"
+rand="0.8.5"
+http="1.0.0"
+hyper="0.14.27"
