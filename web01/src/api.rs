@@ -1,4 +1,5 @@
-mod jwt;
+pub mod chat;
+pub mod jwt;
 pub mod users;
 
 use crate::api::jwt::AuthError;

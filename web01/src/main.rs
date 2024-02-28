@@ -12,9 +12,13 @@ use axum::{
 };
 use dotenvy::dotenv;
 use http::HeaderName;
+use hyper::body::Sender;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::convert::Infallible;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tokio::sync::broadcast;
 use tokio::time::sleep;
 use tower::{service_fn, ServiceBuilder};
 use tower_http::compression::CompressionLayer;
@@ -22,7 +26,8 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, SetRequestIdLayer};
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
-use web01::api;
+use web01::api::chat::ChatState;
+use web01::{api, AppState};
 
 #[tokio::main]
 async fn main() {
@@ -30,6 +35,9 @@ async fn main() {
     // initialize tracing
     tracing_subscriber::fmt::init();
     let pool = db::establish_connection().await;
+    let chat_state = ChatState::new(100);
+    let app_state = Arc::new(AppState { pool, chat_state });
+
     // build our application with a route
     let template_route = Router::new()
         .route("/tem1", get(template_str))
@@ -54,6 +62,7 @@ async fn main() {
         .route("/", get(index))
         .nest("/tem", template_route)
         .nest("/api", api_route)
+        .route("/websocket", get(api::chat::websocket_handler))
         .fallback(fallback)
         .layer(
             ServiceBuilder::new()
@@ -68,7 +77,7 @@ async fn main() {
                 ))
                 .layer(CorsLayer::new().allow_origin(Any)),
         )
-        .with_state(pool);
+        .with_state(app_state);
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
@@ -97,7 +106,7 @@ async fn template_string() -> Html<String> {
 }
 
 async fn template_str() -> Html<&'static str> {
-    Html("<h1>hello template_str world</h1>")
+    Html(include_str!("../templates/chat.html"))
 }
 
 async fn template_include() -> Html<&'static str> {

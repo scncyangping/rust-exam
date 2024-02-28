@@ -1,6 +1,7 @@
 use crate::api::jwt::Claims;
 use crate::api::ApiError;
 use crate::db::User;
+use crate::AppState;
 use anyhow::anyhow;
 use axum::extract::State;
 use axum::routing::any;
@@ -8,6 +9,7 @@ use axum::Json;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use sqlx::{Error, MySql, Pool};
+use std::sync::Arc;
 use std::task::Poll;
 
 #[derive(Deserialize)]
@@ -30,14 +32,14 @@ impl AuthBody {
 }
 
 pub async fn login(
-    State(pool): State<Pool<MySql>>,
+    State(state): State<Arc<AppState>>,
     Json(payload): Json<LoginPayload>,
 ) -> Result<Json<AuthBody>, ApiError> {
     // step1. 使用code从wx获取token
     let wx_user = wx_login(payload.code).await?;
     let user = sqlx::query_as::<_, User>("select * from users where openid= ?")
         .bind(&wx_user.open_id)
-        .fetch_one(&pool)
+        .fetch_one(&state.pool)
         .await;
 
     let user = match user {
@@ -48,12 +50,12 @@ pub async fn login(
                 .bind(&id)
                 .bind(&wx_user.open_id)
                 .bind(&wx_user.session_key)
-                .execute(&pool)
+                .execute(&state.pool)
                 .await?;
 
             sqlx::query_as::<_, User>("select * from users where openid= ?")
                 .bind(&wx_user.open_id)
-                .fetch_one(&pool)
+                .fetch_one(&state.pool)
                 .await?
         }
         Err(e) => return Err(ApiError::from(e)),
