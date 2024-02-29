@@ -3,10 +3,12 @@ mod db;
 use askama::Template;
 use axum::body::Body;
 use axum::extract::{Path, Request};
+use axum::middleware::Next;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::any_service;
 use axum::{
     http::StatusCode,
+    middleware,
     routing::{get, post},
     Json, Router,
 };
@@ -64,6 +66,7 @@ async fn main() {
         .nest("/api", api_route)
         .route("/websocket", get(api::chat::websocket_handler))
         .fallback(fallback)
+        .layer(middleware::from_fn(self_middleware))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -83,6 +86,11 @@ async fn main() {
         .await
         .unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+async fn self_middleware(request: Request, next: Next) -> Result<impl IntoResponse, Response> {
+    tracing::debug!("{}", request.uri().path());
+    Ok(next.run(request).await)
 }
 
 async fn index(req: Request<Body>) -> String {
