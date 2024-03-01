@@ -14,13 +14,12 @@ use axum::{
 };
 use dotenvy::dotenv;
 use http::HeaderName;
-use hyper::body::Sender;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::sync::broadcast;
+use tokio::signal;
+use tokio::signal::unix::signal;
 use tokio::time::sleep;
 use tower::{service_fn, ServiceBuilder};
 use tower_http::compression::CompressionLayer;
@@ -28,6 +27,8 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, SetRequestIdLayer};
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use web01::api::chat::ChatState;
 use web01::{api, AppState};
 
@@ -35,7 +36,16 @@ use web01::{api, AppState};
 async fn main() {
     dotenv().ok();
     // initialize tracing
-    tracing_subscriber::fmt::init();
+    //tracing_subscriber::fmt::init();
+
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "web01=debug,tower_http=debug,axum=trace".into()),
+        )
+        .with(tracing_subscriber::fmt::layer().without_time())
+        .init();
+
     let pool = db::establish_connection().await;
     let chat_state = ChatState::new(100);
     let app_state = Arc::new(AppState { pool, chat_state });
@@ -72,7 +82,7 @@ async fn main() {
                 .layer(TraceLayer::new_for_http())
                 .layer(CompressionLayer::new())
                 // 超时时间
-                .layer(TimeoutLayer::new(Duration::new(0, 200000)))
+                .layer(TimeoutLayer::new(Duration::from_secs(10)))
                 // 设置请求头
                 .layer(SetRequestIdLayer::new(
                     HeaderName::from_static("x-request-id"),
@@ -85,7 +95,33 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
         .unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async { signal::ctrl_c().await.expect("failed to install Ctrl+C") };
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::debug!("ctrl c stop")
+        },
+        _= terminate => {
+            tracing::debug!("terminate stop")
+        }
+    }
 }
 
 async fn self_middleware(request: Request, next: Next) -> Result<impl IntoResponse, Response> {
