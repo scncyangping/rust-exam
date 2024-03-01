@@ -13,13 +13,13 @@ use axum::{
     Json, Router,
 };
 use dotenvy::dotenv;
+use futures::future::Lazy;
 use http::HeaderName;
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::signal;
-use tokio::signal::unix::signal;
 use tokio::time::sleep;
 use tower::{service_fn, ServiceBuilder};
 use tower_http::compression::CompressionLayer;
@@ -72,6 +72,8 @@ async fn main() {
     let app = Router::new()
         // 模版路径
         .route("/", get(index))
+        .route("/auth", post(api::jwt::authorize))
+        .route("/claims", post(api::jwt::claims))
         .nest("/tem", template_route)
         .nest("/api", api_route)
         .route("/websocket", get(api::chat::websocket_handler))
