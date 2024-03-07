@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use time::Instant;
 use tokio::signal;
 use tokio::time::sleep;
 use tower::{service_fn, ServiceBuilder};
@@ -143,8 +144,8 @@ async fn index(req: Request<Body>) -> String {
     }
 }
 
-async fn fallback() -> String {
-    String::from("fallback")
+async fn fallback() -> Html<String> {
+    Html("<h1>fallback</h1>".to_string())
 }
 
 async fn template_string() -> Html<String> {
