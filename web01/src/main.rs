@@ -38,7 +38,6 @@ async fn main() {
     dotenv().ok();
     // initialize tracing
     //tracing_subscriber::fmt::init();
-
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -104,6 +103,7 @@ async fn main() {
         .unwrap();
 }
 
+/// 优雅关闭
 async fn shutdown_signal() {
     let ctrl_c = async { signal::ctrl_c().await.expect("failed to install Ctrl+C") };
     #[cfg(unix)]
@@ -116,7 +116,6 @@ async fn shutdown_signal() {
 
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
-
     tokio::select! {
         _ = ctrl_c => {
             tracing::debug!("ctrl c stop")
