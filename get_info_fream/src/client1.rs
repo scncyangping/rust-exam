@@ -19,10 +19,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(msg) => {
                 let time_info = String::from_utf8(msg.to_vec())?;
                 println!("{}", time_info);
-                println!("{}", time_info);
-            } 
+            }
             Err(e) => {
-                println!("{e}");
                 println!("{e}");
                 return Err(e.into());
             }
