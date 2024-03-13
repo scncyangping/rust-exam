@@ -52,18 +52,21 @@ fn main() {
         name.push_str("Tyr");
         println!("c {}", name);
     };
-
+    c();
+    call_mut(&mut c);
+    call_once(c);
     let mut c1 = move || {
         name1.push_str("!");
         println!("c1 : {}", name1);
     };
-
-    c();
     c1();
-    call_mut(&mut c);
-    call_mut(&mut c1);
-    call_once(c);
     call_once(c1);
+    let name2 = "c2";
+    let c2 = || {
+        println!("c2: {}", name2);
+    };
+    c2();
+    call_once(c2);
 
     let c3 = |num: u32| num * 2;
 
