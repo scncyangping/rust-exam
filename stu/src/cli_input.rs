@@ -2,6 +2,11 @@
 
 use std::io;
 
+pub trait traitA<T: Default, R = u8, D = u8> {
+    type Item;
+    fn add(&self, r: R, i: Self::Item, t: T) -> Self;
+}
+
 fn user_input() {
     let a = [1, 2, 3, 4, 5];
     let mut index = String::new();

@@ -1,5 +1,5 @@
 pub mod cli_input;
-
+pub use cli_input::*;
 #[cfg(test)]
 mod tests {
     use std::{future, vec};
