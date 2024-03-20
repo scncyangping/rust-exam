@@ -94,6 +94,16 @@ mod tests {
         let xxx: [f32; 4] = [11.1, 12.2, 1.3, 4 as f32];
         dbg!(find_max_num(&x));
         dbg!(find_max_num(&xx));
+
+        let v1 = vec![12];
+        let v2 = vec![12];
+        let x = &v2[0];
+        let xx = v2.get(0);
+        let xxx = xx.copied();
+
+        let y = vec![String::from("123")];
+        // copied方法仅能应用到copy类型
+        //let yy = y.get(0).copied();
     }
     fn find_max_num<T>(s: &[T]) -> &T
     where
@@ -102,3 +112,84 @@ mod tests {
         s.iter().max().take().unwrap()
     }
 }
+
+pub trait traitA<T: Default, R = u8, D = u8>: traitB {
+    type Item;
+    fn add(&self, r: R, i: Self::Item, t: T) -> Self;
+}
+
+pub trait traitB {
+    fn traitB();
+}
+
+pub struct StructC<T>
+where
+    T: Default,
+{
+    name: T,
+}
+
+impl<T> traitA<T, u128> for StructC<T>
+where
+    T: Default,
+{
+    type Item = u16;
+
+    fn add(&self, r: u128, i: Self::Item, t: T) -> Self {
+        todo!()
+    }
+}
+
+impl<T> traitA<T, usize> for StructC<T>
+where
+    T: Default,
+{
+    type Item = u16;
+
+    fn add(&self, r: usize, i: Self::Item, t: T) -> Self {
+        todo!()
+    }
+}
+
+impl<T> traitA<usize> for StructC<T>
+where
+    T: Default,
+{
+    type Item = u16;
+
+    fn add(&self, r: u8, i: Self::Item, t: usize) -> Self {
+        todo!()
+    }
+}
+
+impl<T> traitB for StructC<T>
+where
+    T: Default,
+{
+    fn traitB() {
+        println!("structC for traitB")
+    }
+}
+
+pub trait traitC {
+    type Item;
+    fn test(i: Self::Item);
+}
+
+struct StructB {}
+
+impl traitC for StructB {
+    type Item = u32;
+
+    fn test(i: u32) {
+        todo!()
+    }
+}
+// 实现一样的只有item不一样是不可以的
+// impl traitC for StructB {
+//     type Item=u8;
+
+//     fn test(i: u8) {
+//         todo!()
+//     }
+// }
