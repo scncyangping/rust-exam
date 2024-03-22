@@ -1,12 +1,21 @@
-use std::ops::Deref;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{hint, thread};
 
 fn main() {
-    // 由于 String 实现了 Deref<Target=str>
-    let owned = "Hello".to_string();
-    // 因此下面的函数可以正常运行：
-    foo(&owned);
-}
+    let spinlock = Arc::new(AtomicUsize::new(1));
 
-fn foo(s: &str) {
-    println!("{}", s);
+    let spinlock_clone = Arc::clone(&spinlock);
+    let thread = thread::spawn(move|| {
+        spinlock_clone.store(0, Ordering::SeqCst);
+    });
+
+    // 等待其它线程释放锁
+    while spinlock.load(Ordering::SeqCst) != 0 {
+        hint::spin_loop();
+    }
+
+    if let Err(panic) = thread.join() {
+        println!("Thread had an error: {:?}", panic);
+    }
 }
