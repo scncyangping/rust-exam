@@ -36,6 +36,7 @@ members = [
     "test-tracing",
     "lists",
     "web01", 
-    "stu"
-]
+    "stu",
+    "hello_macro",
+    "hello_macro_derive"]
 
