@@ -1,6 +1,6 @@
 use sqlx::{FromRow, MySql, MySqlPool, Pool};
 use std::env;
-use time::PrimitiveDateTime;
+// use time::PrimitiveDateTime;
 
 pub async fn establish_connection() -> Pool<MySql> {
     let db_url = env::var("DATABASE_URL").expect("not found");
