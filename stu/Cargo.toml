@@ -14,3 +14,6 @@ path ="src/cccc/main2.rs"
 name="main"
 path ="src/main.rs"
 [dependencies]
+[[bin]]
+name="main3"
+path ="src/cccc/main3.rs"
