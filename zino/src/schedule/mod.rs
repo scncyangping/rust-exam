@@ -1,6 +1,5 @@
 use std::{future::Future, time::Duration};
 pub mod async_job;
-use zino::{BoxFuture, Map, Uuid};
 pub trait Scheduler {
     fn is_ready(&self) -> bool;
 
@@ -40,7 +39,6 @@ mod tests {
                 }
             });
         }
-
         println!("start...");
         tokio::time::sleep(Duration::from_secs(1000)).await;
         println!("end...");
