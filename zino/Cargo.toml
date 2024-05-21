@@ -3,4 +3,30 @@ name = "zino"
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
+[dependencies.chrono]
+version = "0.4.31"
+features = ["serde"]
+
+[dependencies.cron]
+version = "0.12.0"
+
+[dependencies.serde_json]
+version = "1.0.108"
+features = ["raw_value"]
+
+[dependencies.serde]
+version = "1.0.193"
+features = ["derive"]
+
+[dependencies.uuid]
+version = "1.6.1"
+features = [
+    "fast-rng",
+    "serde",
+    "v4",
+    "v7",
+]
+
+[dependencies.tokio]
+version = "1.37.0"
+features = ["full"]
