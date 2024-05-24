@@ -30,3 +30,7 @@ features = [
 [dependencies.tokio]
 version = "1.37.0"
 features = ["full"]
+
+[dependencies.quick-xml]
+version = "0.31.0"
+features = ["serialize"]
