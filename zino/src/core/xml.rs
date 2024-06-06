@@ -112,4 +112,21 @@ mod tests {
         // 输出反序列化后的结构体
         println!("Deserialized response: {:#?}", response);
     }
+
+    #[test]
+    fn test_xml_de_serialize2() {
+        let xml: &str = r#"
+    <?xml version="1.0" encoding="UTF-8"?>
+        <response>
+            <property name="title">Programming Rust</property>
+            <property name="author">Jim Blandy</property>
+            <property name="title1">Programming Rust</property>
+            <property name="author2">Jim Blandy</property>
+        </response>
+    "#;
+        // 反序列化 XML 数据为 XmlResponse<XmlRspItem> 结构体
+        let response: XmlResponse<XmlRspItem> = build_from_xml(xml).unwrap();
+        // 输出反序列化后的结构体
+        println!("Deserialized response: {:#?}", response);
+    }
 }
