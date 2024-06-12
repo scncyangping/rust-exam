@@ -8,6 +8,8 @@
 //!
 //! 2024/06/07
 
+use std::borrow::Cow;
+
 pub trait ConstTrait {
     const ACCOUNT_FIELD: &'static str = "account";
     const PASSWORD_FIELD: &'static str = "password";
@@ -55,4 +57,34 @@ fn test_print() {
 
     a.do1();
     b.do1();
+}
+
+#[test]
+fn test_cow() {
+    fn do_update_str(st: &str) -> String {
+        if st.contains("A") {
+            let mut x = st.to_owned();
+            x.push_str("1111");
+            x
+        } else {
+            return st.to_owned();
+        }
+    }
+
+    fn do_update_str_with_cow(st: &str) -> Cow<str> {
+        if st.contains("A") {
+            let mut x = st.to_owned();
+            x.push_str("1111");
+            Cow::Owned(x)
+        } else {
+            Cow::Borrowed(st)
+        }
+    }
+
+    fn print(st: &String) {
+        println!("st: {}", st)
+    }
+    let x = "vvv";
+
+    let result = do_update_str_with_cow(x);
 }
