@@ -106,7 +106,9 @@ impl AsyncJob {
     pub async fn tick(&mut self) {
         let now = Local::now();
         let run = self.run;
+        // 已执行过
         if let Some(tict) = self.last_tick {
+            // 判断下一次执行时间是否在当前时间之后
             for event in self.schedule.after(&tict) {
                 if event > now {
                     break;
@@ -118,6 +120,8 @@ impl AsyncJob {
         } else if self.immediate && !self.disabled {
             run(self.id, &mut self.data, now.into()).await
         }
+        // 未执行过
+        self.last_tick = Some(now.into())
     }
 
     pub async fn execute(&mut self) {
