@@ -38,5 +38,5 @@ members = [
     "web01", 
     "stu",
     "hello_macro",
-    "hello_macro_derive", "timer_future", "zino"]
+    "hello_macro_derive", "timer_future", "zino", "lt"]
 
