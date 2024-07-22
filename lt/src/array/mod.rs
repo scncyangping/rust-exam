@@ -1,3 +1,5 @@
+use std::vec;
+
 fn two_split_search(arr: &[i32], target: i32) -> usize {
     let index = arr.len() / 2;
     let (mut start, mut end) = (0, 0);
@@ -76,11 +78,44 @@ pub fn remove_element(nums: &mut Vec<i32>, val: i32) -> i32 {
     index as i32
 }
 
+// 给你一个按 非递减顺序 排序的整数数组 nums，返回 每个数字的平方 组成的新数组，要求也按 非递减顺序 排序。
+// 输入：nums = [-4,-1,0,3,10]
+// 输出：[0,1,9,16,100]
+// 解释：平方后，数组变为 [16,1,0,9,100]，排序后，数组变为 [0,1,9,16,100]
+// 977
+pub fn sorted_squares(nums: Vec<i32>) -> Vec<i32> {
+    // 非递减顺序,说明最左边为最小,最右边为最大,需要注意的是
+    // 负数平方过后可能会比正数还大
+    // 分析可以,若以0为区分,则,正数部分最右边平方也为最大
+    // 负数部分,最左侧平方最大,所以采用双指针法
+    // 分别从左边和右边移动,若确定为大于另一方,则将当前方向指针移动到下一个
+    // 当左边指针小于等于右边指针,继续移动
+    let n = nums.len();
+    let (mut i, mut j, mut k) = (0, n - 1, n);
+    let mut ans = vec![0; n];
+    while i <= j {
+        if nums[i] * nums[i] < nums[j] * nums[j] {
+            ans[k - 1] = nums[j] * nums[j];
+            j -= 1;
+        } else {
+            ans[k - 1] = nums[i] * nums[i];
+            i += 1;
+        }
+        k -= 1;
+    }
+    ans
+}
 #[cfg(test)]
 mod tests {
     use crate::array::{remove_element, two_split_search_v2, two_split_search_v3};
 
-    use super::two_split_search;
+    use super::{sorted_squares, two_split_search};
+    #[test]
+    fn test_sorted_squares() {
+        let x = vec![1];
+        let res = sorted_squares(x);
+        println!("vec: {:?}", res)
+    }
     #[test]
     fn test_remove_element() {
         let mut x = vec![0, 1, 2, 2, 3, 0, 4, 2];
