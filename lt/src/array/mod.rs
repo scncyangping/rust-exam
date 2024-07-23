@@ -105,11 +105,52 @@ pub fn sorted_squares(nums: Vec<i32>) -> Vec<i32> {
     }
     ans
 }
+
+// 给定一个含有 n 个正整数的数组和一个正整数 s ，找出该数组中满足其和 ≥ s 的长度最小的 连续 子数组，并返回其长度。如果不存在符合条件的子数组，返回 0。
+// 示例：
+// 输入：s = 7, nums = [2,3,1,2,4,3]
+// 输出：2
+// 解释：子数组 [4,3] 是该条件下的长度最小的子数组
+// 209
+pub fn min_sub_array_len(target: i32, nums: Vec<i32>) -> i32 {
+    // 滑动窗口
+    // 使用双指针表示滑动窗口
+    // index表示窗口结束位置,start_index表示窗口开始位置
+    let (mut sum, mut start_inex, mut result) = (0, 0, i32::MAX);
+
+    for (index, val) in nums.iter().enumerate() {
+        sum += val;
+        // 寻找大于等于
+        while sum >= target {
+            let sub_length = (index - start_inex + 1) as i32;
+            if result > sub_length {
+                result = sub_length;
+            }
+            sum -= nums[start_inex];
+            start_inex += 1;
+        }
+    }
+
+    if result == i32::MAX {
+        return 0;
+    }
+    result
+}
 #[cfg(test)]
 mod tests {
-    use crate::array::{remove_element, two_split_search_v2, two_split_search_v3};
+    use crate::array::{
+        min_sub_array_len, remove_element, two_split_search_v2, two_split_search_v3,
+    };
 
     use super::{sorted_squares, two_split_search};
+
+    #[test]
+    fn test_min_sub_array_len() {
+        let x = vec![2, 3, 1, 2, 4, 3];
+        let res = min_sub_array_len(11, x);
+        println!("vec: {:?}", res)
+    }
+
     #[test]
     fn test_sorted_squares() {
         let x = vec![1];
