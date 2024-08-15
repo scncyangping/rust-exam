@@ -30,3 +30,61 @@ pub fn remove_elements(head: Option<Box<ListNode>>, val: i32) -> Option<Box<List
     }
     dummy_head.next
 }
+
+mod my_self_link {
+    /**
+     * Your MyLinkedList object will be instantiated and called as such:
+     * let obj = MyLinkedList::new();
+     * let ret_1: i32 = obj.get(index);
+     * obj.add_at_head(val);
+     * obj.add_at_tail(val);
+     * obj.add_at_index(index, val);
+     * obj.delete_at_index(index);
+     */
+
+    #[derive(Default)]
+    struct ListLink {
+        val: i32,
+        next: Option<Box<ListLink>>,
+    }
+
+    #[derive(Default)]
+    struct MyLinkedList {
+        head: Option<Box<ListLink>>,
+    }
+
+    /**
+     * `&self` means the method takes an immutable reference.
+     * If you need a mutable reference, change it to `&mut self` instead.
+     */
+    impl MyLinkedList {
+        fn new() -> Self {
+            Default::default()
+        }
+
+        fn get(&self, index: i32) -> i32 {
+            if index < 0 {
+                return -1;
+            }
+            let mut cur = &self.head;
+            let mut count = 0;
+            while let Some(en) = cur {
+                // 有下一个
+                if count == index {
+                    return en.val;
+                }
+                count += 1;
+                cur = &en.next;
+            }
+            return -1;
+        }
+
+        fn add_at_head(&self, val: i32) {}
+
+        fn add_at_tail(&self, val: i32) {}
+
+        fn add_at_index(&self, index: i32, val: i32) {}
+
+        fn delete_at_index(&self, index: i32) {}
+    }
+}
