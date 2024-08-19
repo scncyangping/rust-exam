@@ -79,12 +79,66 @@ mod my_self_link {
             return -1;
         }
 
-        fn add_at_head(&self, val: i32) {}
+        fn add_at_head(&mut self, val: i32) {
+            self.head = Some(Box::new(ListLink {
+                val,
+                next: self.head.take(),
+            }))
+        }
 
-        fn add_at_tail(&self, val: i32) {}
+        fn add_at_tail(&mut self, val: i32) {
+            let mut p = &mut self.head;
+            while let Some(node) = p {
+                p = &mut node.next;
+            }
+            *p = Some(Box::new(ListLink { val, next: None }));
+        }
 
-        fn add_at_index(&self, index: i32, val: i32) {}
+        fn add_at_index(&mut self, index: i32, val: i32) {
+            if index <= 0 {
+                self.add_at_head(val);
+            } else {
+                let mut i = 0;
+                let mut p = &mut self.head;
 
-        fn delete_at_index(&self, index: i32) {}
+                while let Some(node) = p {
+                    if index == i + 1 {
+                        node.next = Some(Box::new(ListLink {
+                            val,
+                            next: node.next.take(),
+                        }));
+                        return;
+                    } else {
+                        p = &mut node.next;
+                        i += 1;
+                    }
+                }
+            }
+        }
+
+        fn delete_at_index(&mut self, index: i32) {
+            if index < 0 {
+                return;
+            }
+
+            let mut i = 0;
+            let mut p = &mut self.head;
+
+            loop {
+                match p {
+                    None => {
+                        return;
+                    }
+                    Some(node) if index == i => {
+                        *p = node.next.take();
+                        return;
+                    }
+                    Some(node) => {
+                        p = &mut node.next;
+                        i += 1;
+                    }
+                }
+            }
+        }
     }
 }
