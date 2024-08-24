@@ -1,0 +1,10 @@
+[package]
+name = "fighting"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tracing = "0.1"
+clap = { version = "4.5.16", features = ["derive"] }
+tokio = { version = "1.20", features = ["tracing", "signal", "macros","rt-multi-thread"] }
+anyhow = { version = "1.0", features = ["backtrace"] }
