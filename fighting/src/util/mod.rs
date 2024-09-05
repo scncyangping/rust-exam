@@ -1,1 +1,1 @@
-mod file_perm;
+pub mod file_perm;

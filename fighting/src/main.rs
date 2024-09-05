@@ -3,6 +3,8 @@ use clap::Parser;
 use cmd::Cli;
 use tracing::*;
 mod cmd;
+mod util;
+mod config;
 
 async fn _main() -> Result<()> {
     let cli = Cli::parse();
