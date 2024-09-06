@@ -5,6 +5,7 @@ use tracing::*;
 mod cmd;
 mod util;
 mod config;
+mod logging;
 
 async fn _main() -> Result<()> {
     let cli = Cli::parse();
