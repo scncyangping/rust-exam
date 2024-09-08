@@ -20,7 +20,7 @@ use clap::ArgAction;
 pub struct Cli {
     #[clap(long,short,action=ArgAction::Count)]
     pub debug: u8,
-    #[clap(long, short, default_value = "/etc/warpgate.yaml", action=ArgAction::Set)]
+    #[clap(long, short, default_value = "/Users/yangping/Work/code/rust_space/self/rust-exam/fighting/config.yaml", action=ArgAction::Set)]
     pub config: PathBuf,
     #[clap(subcommand)]
     pub command: Commands,

@@ -1,14 +1,19 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
 use cmd::Cli;
+use config::load_config;
+use logging::init_logging;
 use tracing::*;
 mod cmd;
-mod util;
 mod config;
 mod logging;
+mod util;
 
 async fn _main() -> Result<()> {
     let cli = Cli::parse();
+    init_logging(load_config(&cli.config, false).ok().as_ref(), &cli).await;
+    let version = env!("CARGO_PKG_VERSION");
+    info!(%version, "Fighting");
 
     match &cli.command {
         cmd::Commands::Run => {
@@ -18,7 +23,6 @@ async fn _main() -> Result<()> {
             println!("test: {:?}, {:?}", data_path, test2);
         }
         cmd::Commands::Test1(d) => {
-            //println!("test1: {:?}", d.command);
             println!("test1")
         }
     }

@@ -17,13 +17,13 @@ pub struct GlobalConfigStore {
     name: String,
 }
 
-pub fn log_config(path: &Path, secure: bool) -> Result<GlobalConfig> {
+pub fn load_config(path: &Path, secure: bool) -> Result<GlobalConfig> {
     // 校验文件是否安全
     if secure {
         secure_file(path).context("Could not secure config")?;
     }
     // 读取文件
-    let mut store: serde_yaml::Value = Config::builder()
+    let store: serde_yaml::Value = Config::builder()
         .add_source(File::from(path))
         .add_source(Environment::with_prefix("YP"))
         .build()
@@ -33,8 +33,8 @@ pub fn log_config(path: &Path, secure: bool) -> Result<GlobalConfig> {
 
     let store: GlobalConfigStore =
         serde_yaml::from_value(store).context("Could not load config")?;
-    
-    let config = GlobalConfig{
+
+    let config = GlobalConfig {
         store,
         paths_relative_to: path.parent().context("FS root reached")?.to_path_buf(),
     };
