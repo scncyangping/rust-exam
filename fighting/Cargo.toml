@@ -5,10 +5,10 @@ edition = "2021"
 
 [dependencies]
 serde = {version="1.0",features = ["derive"]}
-serde_yaml = "0.8.23"
+serde_yaml = "0.9.34+deprecated"
 serde_json = "1.0"
 clap = { version = "4.5.16", features = ["derive"] }
-tokio = { version = "1.20", features = ["tracing", "signal", "macros","rt-multi-thread"] }
+tokio = { version = "1.20", features = ["tracing", "signal", "macros","rt-multi-thread","sync"] }
 anyhow = { version = "1.0", features = ["backtrace"] }
 config = { version = "0.14", features = ["yaml"], default-features = false }
 
@@ -22,3 +22,4 @@ time = "0.3"
 chrono= {version="0.4.31", features=["serde"]}
 
 console = { version = "0.15", default-features = false }
+russh = { version = "0.44.1", features = ["legacy-ed25519-pkcs8-parser"] }

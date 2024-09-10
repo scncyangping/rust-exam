@@ -7,6 +7,7 @@ use tracing::*;
 mod cmd;
 mod config;
 mod logging;
+mod protocol;
 mod util;
 
 async fn _main() -> Result<()> {
