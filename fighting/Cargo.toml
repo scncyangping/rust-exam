@@ -23,3 +23,7 @@ chrono= {version="0.4.31", features=["serde"]}
 
 console = { version = "0.15", default-features = false }
 russh = { version = "0.44.1", features = ["legacy-ed25519-pkcs8-parser"] }
+
+
+
+uuid = { version = "1.2", features = ["v4", "serde"] }
