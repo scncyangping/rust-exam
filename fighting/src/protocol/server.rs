@@ -1,20 +1,107 @@
 //! SSH SERVER
 
-use async_trait::async_trait;
-use bytes::Bytes;
-use russh::{
-    keys::key::PublicKey,
-    server::{Auth, Handle, Msg, Session},
-    Channel, ChannelId, Pty, Sig,
+use std::{
+    borrow::Cow,
+    collections::binary_heap::Drain,
+    net::SocketAddr,
+    sync::Arc,
+    time::{self, Duration},
 };
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
-use tracing::debug;
 
 use super::{
     common::{DirectTCPIPParams, PtyRequest, ServerChannelId, X11Request},
     secret::Secret,
 };
+use anyhow::anyhow;
+use async_trait::async_trait;
+use bytes::Bytes;
+use chrono::Utc;
+use openssl::rsa::Rsa;
+use russh::{
+    keys::{
+        decode_secret_key,
+        key::{KeyPair, PublicKey},
+    },
+    server::{Auth, Handle, Msg, Session},
+    Channel, ChannelId, ChannelMsg, MethodSet, Preferred, Pty, Sig,
+};
 use std::fmt::Debug;
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::TcpListener,
+    sync::{
+        mpsc::{unbounded_channel, UnboundedSender},
+        oneshot,
+    },
+    time::sleep,
+};
+use tracing::{debug, info};
+
+fn generate_rsa_keypair() -> Result<KeyPair, Box<dyn std::error::Error>> {
+    let rsa = Rsa::generate(2048)?.private_key_to_pem()?;
+    // 将 PEM 格式私钥解析为 Russh 的 KeyPair
+    let private_key = decode_secret_key(std::str::from_utf8(&rsa)?, None)?;
+    Ok(private_key)
+}
+
+pub async fn run_server(address: SocketAddr) -> anyhow::Result<()> {
+    let russh_config = {
+        russh::server::Config {
+            auth_rejection_time: Duration::from_secs(1),
+            auth_rejection_time_initial: Some(Duration::from_secs(0)),
+            //inactivity_timeout: Some(Duration::from_secs(3600)),
+            // 多久没收到消息则关闭通道(仅针对通道)
+            inactivity_timeout: None,
+            // 多少秒没收到消息则探活
+            keepalive_interval: Some(Duration::from_secs(10)),
+            // 达到3次没收到响应,则退出
+            keepalive_max: 3,
+            methods: MethodSet::PUBLICKEY | MethodSet::PASSWORD | MethodSet::KEYBOARD_INTERACTIVE,
+            keys: vec![generate_rsa_keypair().map_err(|e| anyhow!(e.to_string()))?],
+            event_buffer_size: 100,
+            preferred: Preferred {
+                key: Cow::Borrowed(&[
+                    russh::keys::key::ED25519,
+                    russh::keys::key::RSA_SHA2_256,
+                    russh::keys::key::RSA_SHA2_512,
+                    russh::keys::key::SSH_RSA,
+                ]),
+                ..<_>::default()
+            },
+            ..<_>::default()
+        }
+    };
+
+    let russh_config = Arc::new(russh_config);
+
+    let socket = TcpListener::bind(&address).await?;
+    info!(?address, "Listening");
+    while let Ok((socket, remote_address)) = socket.accept().await {
+        let russh_config = russh_config.clone();
+        let (event_tx, event_rx) = unbounded_channel();
+        let handler = ServerHandler {
+            handle: None,
+            event_tx,
+        };
+        tokio::spawn(_run_stream(russh_config, socket, handler));
+    }
+    Ok(())
+}
+
+async fn _run_stream<R>(
+    config: Arc<russh::server::Config>,
+    socket: R,
+    handler: ServerHandler,
+) -> anyhow::Result<()>
+where
+    R: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    let session: russh::server::RunningSession<ServerHandler> =
+        russh::server::run_stream(config, socket, handler).await?;
+    session.await?;
+    Ok(())
+}
+
 pub struct HandleWrapper(pub Handle);
 
 impl Debug for HandleWrapper {
@@ -23,44 +110,15 @@ impl Debug for HandleWrapper {
     }
 }
 
-#[derive(Debug)]
-pub enum ServerHandlerEvent {
-    Authenticated(HandleWrapper),
-    ChannelOpenSession(ServerChannelId, oneshot::Sender<bool>),
-    SubsystemRequest(ServerChannelId, String, oneshot::Sender<bool>),
-    PtyRequest(ServerChannelId, PtyRequest, oneshot::Sender<()>),
-    ShellRequest(ServerChannelId, oneshot::Sender<bool>),
-    AuthPublicKey(Secret<String>, PublicKey, oneshot::Sender<Auth>),
-    AuthPublicKeyOffer(Secret<String>, PublicKey, oneshot::Sender<Auth>),
-    AuthPassword(Secret<String>, Secret<String>, oneshot::Sender<Auth>),
-    AuthKeyboardInteractive(
-        Secret<String>,
-        Option<Secret<String>>,
-        oneshot::Sender<Auth>,
-    ),
-    Data(ServerChannelId, Bytes, oneshot::Sender<()>),
-    ExtendedData(ServerChannelId, Bytes, u32, oneshot::Sender<()>),
-    ChannelClose(ServerChannelId, oneshot::Sender<()>),
-    ChannelEof(ServerChannelId, oneshot::Sender<()>),
-    WindowChangeRequest(ServerChannelId, PtyRequest, oneshot::Sender<()>),
-    Signal(ServerChannelId, Sig, oneshot::Sender<()>),
-    ExecRequest(ServerChannelId, Bytes, oneshot::Sender<bool>),
-    ChannelOpenDirectTcpIp(ServerChannelId, DirectTCPIPParams, oneshot::Sender<bool>),
-    EnvRequest(ServerChannelId, String, String, oneshot::Sender<()>),
-    X11Request(ServerChannelId, X11Request, oneshot::Sender<()>),
-    TcpIpForward(String, u32, oneshot::Sender<bool>),
-    CancelTcpIpForward(String, u32, oneshot::Sender<bool>),
-    Disconnect,
-}
-
-pub struct ServerHandler {
-    pub event_tx: UnboundedSender<ServerHandlerEvent>,
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum ServerHandlerError {
     #[error("channel disconnected")]
     ChannelSend,
+}
+
+pub struct ServerHandler {
+    pub handle: Option<Handle>,
+    pub event_tx: UnboundedSender<ServerHandlerEvent>,
 }
 
 impl ServerHandler {
@@ -69,15 +127,70 @@ impl ServerHandler {
             .send(event)
             .map_err(|_| ServerHandlerError::ChannelSend)
     }
+    pub async fn loop_handle(&mut self, handle: Handle) {}
 }
 
 #[async_trait]
 impl russh::server::Handler for ServerHandler {
     type Error = anyhow::Error;
-
     async fn auth_succeeded(&mut self, session: &mut Session) -> Result<(), Self::Error> {
-        let handle = session.handle();
-        self.send_event(ServerHandlerEvent::Authenticated(HandleWrapper(handle)))?;
+        self.handle = Some(session.handle());
+        println!("auth_succeed: {}", Utc::now().to_string());
+        Ok(())
+    }
+
+    async fn auth_publickey(
+        &mut self,
+        user: &str,
+        key: &russh::keys::key::PublicKey,
+    ) -> Result<Auth, Self::Error> {
+        let user = Secret::new(user.to_string());
+        let (tx, rx) = oneshot::channel();
+
+        self.send_event(ServerHandlerEvent::AuthPublicKey(user, key.clone(), tx))?;
+
+        let result = rx.await.unwrap_or(Auth::UnsupportedMethod);
+        Ok(result)
+    }
+
+    async fn auth_password(&mut self, user: &str, password: &str) -> Result<Auth, Self::Error> {
+        println!(
+            "date:{}, user: {}, password: {}",
+            Utc::now().to_string(),
+            user,
+            password
+        );
+        Ok(Auth::Accept)
+    }
+
+    async fn data(
+        &mut self,
+        channel: ChannelId,
+        data: &[u8],
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        println!(
+            "data: {}, channelId: {}, data: {}",
+            Utc::now().to_string(),
+            channel,
+            String::from_utf8(data.to_vec())?
+        );
+        Ok(())
+    }
+
+    async fn extended_data(
+        &mut self,
+        channel: ChannelId,
+        code: u32,
+        data: &[u8],
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        println!(
+            "extended_data: {}, channelId: {}, data: {}",
+            Utc::now().to_string(),
+            channel,
+            std::str::from_utf8(data)?
+        );
         Ok(())
     }
 
@@ -86,16 +199,231 @@ impl russh::server::Handler for ServerHandler {
         channel: Channel<Msg>,
         _session: &mut Session,
     ) -> Result<bool, Self::Error> {
-        let (tx, rx) = oneshot::channel();
+        let mut new_chan = channel;
+        println!(
+            "channel_open_session: {}, channelId: {}",
+            Utc::now().to_string(),
+            new_chan.id()
+        );
+        tokio::spawn(async move {
+            loop {
+                match new_chan.wait().await {
+                    Some(ChannelMsg::Open {
+                        id,
+                        max_packet_size,
+                        window_size,
+                    }) => {
+                        println!("receve open: {}", id);
+                    }
 
-        self.send_event(ServerHandlerEvent::ChannelOpenSession(
-            ServerChannelId(channel.id()),
-            tx,
-        ))?;
+                    Some(ChannelMsg::Data { data }) => {
+                        let bytes: &[u8] = &data;
+                        println!("revece data{}", String::from_utf8_lossy(&bytes));
+                    }
 
-        let allowed = rx.await.unwrap_or(false);
-        Ok(allowed)
+                    Some(ChannelMsg::ExtendedData { data, ext }) => {
+                        let bytes: &[u8] = &data;
+                        println!(
+                            "revece ext: {},extendeData{}",
+                            ext,
+                            String::from_utf8_lossy(&bytes)
+                        );
+                        tokio::time::sleep(Duration::from_secs(2)).await;
+                        new_chan
+                            .extended_data(3, "ttttooo".as_bytes())
+                            .await
+                            .unwrap();
+                    }
+
+                    Some(ChannelMsg::Eof) => {
+                        println!("receive eof");
+                        break;
+                    }
+
+                    Some(ChannelMsg::Close) => {
+                        println!("receive close");
+                        break;
+                    }
+
+                    Some(ChannelMsg::OpenFailure(reason)) => {
+                        println!("open error:{:?}", reason)
+                    }
+                    None => {
+                        println!("receve none");
+                        println!(
+                            "receve none: {}, channelId: {}",
+                            Utc::now().to_string(),
+                            new_chan.id()
+                        );
+                        break;
+                    }
+                    msg => {
+                        println!("msg = {:?}", msg);
+                    }
+                }
+            }
+        });
+        Ok(true)
     }
+
+    async fn channel_close(
+        &mut self,
+        channel: ChannelId,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        println!(
+            "channel_close: {}, channelId: {}",
+            Utc::now().to_string(),
+            channel
+        );
+        Ok(())
+    }
+    async fn channel_eof(
+        &mut self,
+        channel: ChannelId,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        println!(
+            "channel_eof: {}, channelId: {}",
+            Utc::now().to_string(),
+            channel
+        );
+        Ok(())
+    }
+
+    async fn signal(
+        &mut self,
+        channel: ChannelId,
+        signal_name: russh::Sig,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        println!("signal: {}, channelId: {}", Utc::now().to_string(), channel);
+        Ok(())
+    }
+
+    // async fn auth_publickey(
+    //     &mut self,
+    //     user: &str,
+    //     key: &russh::keys::key::PublicKey,
+    // ) -> Result<Auth, Self::Error> {
+    //     let user = Secret::new(user.to_string());
+    //     let (tx, rx) = oneshot::channel();
+
+    //     self.send_event(ServerHandlerEvent::AuthPublicKey(user, key.clone(), tx))?;
+
+    //     let result = rx.await.unwrap_or(Auth::UnsupportedMethod);
+    //     Ok(result)
+    // }
+
+    // async fn auth_password(&mut self, user: &str, password: &str) -> Result<Auth, Self::Error> {
+    //     let user = Secret::new(user.to_string());
+    //     let password = Secret::new(password.to_string());
+
+    //     let (tx, rx) = oneshot::channel();
+
+    //     self.send_event(ServerHandlerEvent::AuthPassword(user, password, tx))?;
+
+    //     let result = rx.await.unwrap_or(Auth::UnsupportedMethod);
+    //     Ok(result)
+    // }
+
+    // async fn data(
+    //     &mut self,
+    //     channel: ChannelId,
+    //     data: &[u8],
+    //     _session: &mut Session,
+    // ) -> Result<(), Self::Error> {
+    //     let channel = ServerChannelId(channel);
+    //     let data = Bytes::from(data.to_vec());
+
+    //     let (tx, rx) = oneshot::channel();
+
+    //     self.send_event(ServerHandlerEvent::Data(channel, data, tx))?;
+
+    //     let _ = rx.await;
+    //     Ok(())
+    // }
+
+    // async fn extended_data(
+    //     &mut self,
+    //     channel: ChannelId,
+    //     code: u32,
+    //     data: &[u8],
+    //     _session: &mut Session,
+    // ) -> Result<(), Self::Error> {
+    //     let channel = ServerChannelId(channel);
+    //     let data = Bytes::from(data.to_vec());
+    //     let (tx, rx) = oneshot::channel();
+
+    //     self.send_event(ServerHandlerEvent::ExtendedData(channel, data, code, tx))?;
+    //     let _ = rx.await;
+    //     Ok(())
+    // }
+
+    // async fn channel_open_session(
+    //     &mut self,
+    //     channel: Channel<Msg>,
+    //     _session: &mut Session,
+    // ) -> Result<bool, Self::Error> {
+    //     let (tx, rx) = oneshot::channel();
+
+    //     self.send_event(ServerHandlerEvent::ChannelOpenSession(
+    //         ServerChannelId(channel.id()),
+    //         tx,
+    //     ))?;
+
+    //     let allowed = rx.await.unwrap_or(false);
+    //     Ok(allowed)
+    // }
+
+    // async fn channel_close(
+    //     &mut self,
+    //     channel: ChannelId,
+    //     _session: &mut Session,
+    // ) -> Result<(), Self::Error> {
+    //     let channel = ServerChannelId(channel);
+    //     let (tx, rx) = oneshot::channel();
+    //     self.send_event(ServerHandlerEvent::ChannelClose(channel, tx))?;
+    //     let _ = rx.await;
+    //     Ok(())
+    // }
+    // async fn channel_eof(
+    //     &mut self,
+    //     channel: ChannelId,
+    //     _session: &mut Session,
+    // ) -> Result<(), Self::Error> {
+    //     let channel = ServerChannelId(channel);
+    //     let (tx, rx) = oneshot::channel();
+
+    //     self.event_tx
+    //         .send(ServerHandlerEvent::ChannelEof(channel, tx))
+    //         .map_err(|_| ServerHandlerError::ChannelSend)?;
+
+    //     let _ = rx.await;
+    //     Ok(())
+    // }
+
+    // async fn signal(
+    //     &mut self,
+    //     channel: ChannelId,
+    //     signal_name: russh::Sig,
+    //     _session: &mut Session,
+    // ) -> Result<(), Self::Error> {
+    //     let (tx, rx) = oneshot::channel();
+    //     self.send_event(ServerHandlerEvent::Signal(
+    //         ServerChannelId(channel),
+    //         signal_name,
+    //         tx,
+    //     ))?;
+    //     let _ = rx.await;
+    //     Ok(())
+    // }
+
+    // async fn auth_succeeded(&mut self, session: &mut Session) -> Result<(), Self::Error> {
+    //     let handle = session.handle();
+    //     self.send_event(ServerHandlerEvent::Authenticated(HandleWrapper(handle)))?;
+    //     Ok(())
+    // }
 
     async fn subsystem_request(
         &mut self,
@@ -199,32 +527,6 @@ impl russh::server::Handler for ServerHandler {
         }))
     }
 
-    async fn auth_publickey(
-        &mut self,
-        user: &str,
-        key: &russh::keys::key::PublicKey,
-    ) -> Result<Auth, Self::Error> {
-        let user = Secret::new(user.to_string());
-        let (tx, rx) = oneshot::channel();
-
-        self.send_event(ServerHandlerEvent::AuthPublicKey(user, key.clone(), tx))?;
-
-        let result = rx.await.unwrap_or(Auth::UnsupportedMethod);
-        Ok(result)
-    }
-
-    async fn auth_password(&mut self, user: &str, password: &str) -> Result<Auth, Self::Error> {
-        let user = Secret::new(user.to_string());
-        let password = Secret::new(password.to_string());
-
-        let (tx, rx) = oneshot::channel();
-
-        self.send_event(ServerHandlerEvent::AuthPassword(user, password, tx))?;
-
-        let result = rx.await.unwrap_or(Auth::UnsupportedMethod);
-        Ok(result)
-    }
-
     async fn auth_keyboard_interactive(
         &mut self,
         user: &str,
@@ -247,51 +549,6 @@ impl russh::server::Handler for ServerHandler {
         Ok(result)
     }
 
-    async fn data(
-        &mut self,
-        channel: ChannelId,
-        data: &[u8],
-        _session: &mut Session,
-    ) -> Result<(), Self::Error> {
-        let channel = ServerChannelId(channel);
-        let data = Bytes::from(data.to_vec());
-
-        let (tx, rx) = oneshot::channel();
-
-        self.send_event(ServerHandlerEvent::Data(channel, data, tx))?;
-
-        let _ = rx.await;
-        Ok(())
-    }
-
-    async fn extended_data(
-        &mut self,
-        channel: ChannelId,
-        code: u32,
-        data: &[u8],
-        _session: &mut Session,
-    ) -> Result<(), Self::Error> {
-        let channel = ServerChannelId(channel);
-        let data = Bytes::from(data.to_vec());
-        let (tx, rx) = oneshot::channel();
-
-        self.send_event(ServerHandlerEvent::ExtendedData(channel, data, code, tx))?;
-        let _ = rx.await;
-        Ok(())
-    }
-
-    async fn channel_close(
-        &mut self,
-        channel: ChannelId,
-        _session: &mut Session,
-    ) -> Result<(), Self::Error> {
-        let channel = ServerChannelId(channel);
-        let (tx, rx) = oneshot::channel();
-        self.send_event(ServerHandlerEvent::ChannelClose(channel, tx))?;
-        let _ = rx.await;
-        Ok(())
-    }
-
     async fn window_change_request(
         &mut self,
         channel: ChannelId,
@@ -312,38 +569,6 @@ impl russh::server::Handler for ServerHandler {
                 pix_height,
                 modes: vec![],
             },
-            tx,
-        ))?;
-        let _ = rx.await;
-        Ok(())
-    }
-
-    async fn channel_eof(
-        &mut self,
-        channel: ChannelId,
-        _session: &mut Session,
-    ) -> Result<(), Self::Error> {
-        let channel = ServerChannelId(channel);
-        let (tx, rx) = oneshot::channel();
-
-        self.event_tx
-            .send(ServerHandlerEvent::ChannelEof(channel, tx))
-            .map_err(|_| ServerHandlerError::ChannelSend)?;
-
-        let _ = rx.await;
-        Ok(())
-    }
-
-    async fn signal(
-        &mut self,
-        channel: ChannelId,
-        signal_name: russh::Sig,
-        _session: &mut Session,
-    ) -> Result<(), Self::Error> {
-        let (tx, rx) = oneshot::channel();
-        self.send_event(ServerHandlerEvent::Signal(
-            ServerChannelId(channel),
-            signal_name,
             tx,
         ))?;
         let _ = rx.await;
@@ -494,4 +719,34 @@ impl Debug for ServerHandler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "ServerHandler")
     }
+}
+
+#[derive(Debug)]
+pub enum ServerHandlerEvent {
+    Authenticated(HandleWrapper),
+    ChannelOpenSession(ServerChannelId, oneshot::Sender<bool>),
+    SubsystemRequest(ServerChannelId, String, oneshot::Sender<bool>),
+    PtyRequest(ServerChannelId, PtyRequest, oneshot::Sender<()>),
+    ShellRequest(ServerChannelId, oneshot::Sender<bool>),
+    AuthPublicKey(Secret<String>, PublicKey, oneshot::Sender<Auth>),
+    AuthPublicKeyOffer(Secret<String>, PublicKey, oneshot::Sender<Auth>),
+    AuthPassword(Secret<String>, Secret<String>, oneshot::Sender<Auth>),
+    AuthKeyboardInteractive(
+        Secret<String>,
+        Option<Secret<String>>,
+        oneshot::Sender<Auth>,
+    ),
+    Data(ServerChannelId, Bytes, oneshot::Sender<()>),
+    ExtendedData(ServerChannelId, Bytes, u32, oneshot::Sender<()>),
+    ChannelClose(ServerChannelId, oneshot::Sender<()>),
+    ChannelEof(ServerChannelId, oneshot::Sender<()>),
+    WindowChangeRequest(ServerChannelId, PtyRequest, oneshot::Sender<()>),
+    Signal(ServerChannelId, Sig, oneshot::Sender<()>),
+    ExecRequest(ServerChannelId, Bytes, oneshot::Sender<bool>),
+    ChannelOpenDirectTcpIp(ServerChannelId, DirectTCPIPParams, oneshot::Sender<bool>),
+    EnvRequest(ServerChannelId, String, String, oneshot::Sender<()>),
+    X11Request(ServerChannelId, X11Request, oneshot::Sender<()>),
+    TcpIpForward(String, u32, oneshot::Sender<bool>),
+    CancelTcpIpForward(String, u32, oneshot::Sender<bool>),
+    Disconnect,
 }
