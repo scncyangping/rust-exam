@@ -1,7 +1,10 @@
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Display, Formatter},
+    sync::Arc,
+};
 
 use russh::{ChannelId, Pty};
-
+use tokio::sync::{mpsc::UnboundedSender, Mutex, MutexGuard};
 #[derive(Clone, Copy, Debug, PartialEq, Hash, Eq)]
 pub struct ServerChannelId(pub ChannelId);
 
@@ -36,3 +39,30 @@ pub struct X11Request {
     pub x11_auth_cookie: String,
     pub x11_screen_number: u32,
 }
+
+// ************ EventHub and EventSender start ************
+
+type SubscriptionStoreInner<E> = Vec<(Box<dyn Fn(&E) -> bool + Send>, UnboundedSender<E>)>;
+
+type SubscriptionStore<E> = Arc<Mutex<SubscriptionStoreInner<E>>>;
+
+pub struct EventSender<E> {
+    subscriptions: SubscriptionStore<E>,
+}
+
+impl<E> Clone for EventSender<E> {
+    fn clone(&self) -> Self {
+        Self {
+            subscriptions: self.subscriptions.clone(),
+        }
+    }
+}
+
+impl<E> EventSender<E> {
+    async fn cleanup_subscriptions(&self) -> MutexGuard<'_, SubscriptionStoreInner<E>> {
+        let mut subs = self.subscriptions.lock().await;
+        subs.retain(|(_,ref s)| !s.is_closed());
+        subs
+    }
+}
+// ************ EventHub and EventSender end ************

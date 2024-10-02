@@ -4,11 +4,11 @@ use cmd::Cli;
 use config::load_config;
 use logging::init_logging;
 use tracing::*;
-mod cmd;
-mod config;
-mod logging;
-mod protocol;
-mod util;
+pub mod cmd;
+pub mod config;
+pub mod logging;
+pub mod protocol;
+pub mod util;
 
 async fn _main() -> Result<()> {
     let cli = Cli::parse();

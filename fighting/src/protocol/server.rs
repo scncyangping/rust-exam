@@ -33,7 +33,6 @@ use tokio::{
         mpsc::{unbounded_channel, UnboundedSender},
         oneshot,
     },
-    time::sleep,
 };
 use tracing::{debug, info};
 
@@ -230,7 +229,7 @@ impl russh::server::Handler for ServerHandler {
                         );
                         tokio::time::sleep(Duration::from_secs(2)).await;
                         new_chan
-                            .extended_data(3, "ttttooo".as_bytes())
+                            .extended_data(3, "SSSSSSSSSSSSSSS".as_bytes())
                             .await
                             .unwrap();
                     }
