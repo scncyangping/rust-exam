@@ -7,7 +7,7 @@ fn main() {
     println!("Fetching url: {}", url);
 
     let body = reqwest::blocking::get(url).unwrap().text().unwrap();
-    
+
     print!("Converting html to markdown");
     let md = html2md::parse_html(&body);
 
