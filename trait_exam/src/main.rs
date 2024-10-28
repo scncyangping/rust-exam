@@ -32,16 +32,17 @@ impl Write for BufBuilder {
     }
 }
 fn main() {
-    let mut f =
-        File::create("rust-exam/trait_exam/ttt").unwrap();
+    let mut f = File::create("rust-exam/trait_exam/ttt").unwrap();
     let w: &mut dyn Write = &mut f;
 
     w.write_all(b"heelo").unwrap();
 
     // error the `by_ref` method cannot be invoked on a trait object
     // trait object 返回值不能是Self或者携带范型参数
-    let w1 = w.by_ref();
-    w1.write_all(b"word").unwrap();
+    // 上述 let w: &mut dyn Write = &mut f;修改为
+    // let w = &mut f;即可解决
+    //let w1 = w.by_ref();
+    //w1.write_all(b"word").unwrap();
 
     let mut buf = BufBuilder::new();
 

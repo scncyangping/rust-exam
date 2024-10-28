@@ -19,7 +19,7 @@ mod tests {
     #[test]
     fn hget_should_work() {
         let store = MemTable::new();
-        let cmd = CommandRequest::new_hset("score", "u1", 10.into());
+        let cmd = CommandRequest::new_hset("score", "u1", "world".into());
         dispatch(cmd.clone(), &store);
 
         let cmd = CommandRequest::new_hget("score", "u1");

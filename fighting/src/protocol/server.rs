@@ -4,6 +4,7 @@ use std::{
     borrow::Cow,
     collections::binary_heap::Drain,
     net::SocketAddr,
+    ptr::null,
     sync::Arc,
     time::{self, Duration},
 };

@@ -70,10 +70,10 @@ mod tests {
     fn test_search() {
         let query = "mod tests";
         let contents = "
-    mod tests {
+mod tests {
 #[test]
 fn test_search() {
-    let contents = 
+    let contents =
     ";
         assert_eq!(vec!["mod tests {"], search(query, contents))
     }

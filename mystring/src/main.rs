@@ -102,7 +102,7 @@ fn main() {
     assert!(s2.starts_with("hello"));
 
     let x = String::from("world world");
-    let xx = vec!['a','b','c','d','e'];
+    let xx = vec!['a', 'b', 'c', 'd', 'e'];
     let y = &x[1..2];
     let yy = &xx[1..2];
 }

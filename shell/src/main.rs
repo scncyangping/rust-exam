@@ -20,7 +20,7 @@ async fn main() {
 
         // 使用 tokio-tungstenite 接受 WebSocket 连接
         let ws_stream = accept_async(socket).await.unwrap();
-        
+
         // 为每个连接启动新的线程进行处理
         tokio::spawn(async move {
             if let Err(err) = handle_websocket(ws_stream).await {

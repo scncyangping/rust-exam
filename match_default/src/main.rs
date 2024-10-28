@@ -17,14 +17,14 @@ fn main() {
     assert_eq!(Some("car").unwrap_or("bike"), "car");
     assert_eq!(None.unwrap_or("bike"), "bike");
 
-    assert_eq!(Some("air").unwrap_or("bi"),"car");
-    assert_eq!(None.unwrap_or("bike"),"bike");
+    assert_eq!(Some("air").unwrap_or("bi"), "car");
+    assert_eq!(None.unwrap_or("bike"), "bike");
     // Result
-    let  default :u32 = 2;
-    let x:Result<u32,&str> = Ok(9);
-    assert_eq!(x.unwrap_or(default),9);
-    let x:Result<u32,&str>= Err("error");
-    assert_eq!(x.unwrap_or(default),default);
+    let default: u32 = 2;
+    let x: Result<u32, &str> = Ok(9);
+    assert_eq!(x.unwrap_or(default), 9);
+    let x: Result<u32, &str> = Err("error");
+    assert_eq!(x.unwrap_or(default), default);
 
     // Option
     let x: Option<u32> = None;

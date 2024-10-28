@@ -35,8 +35,8 @@ members = [
     "my_redis",
     "test-tracing",
     "lists",
-    "web01", 
+    "web01",
     "stu",
     "hello_macro",
-    "hello_macro_derive", "timer_future", "zino", "lt", "fighting"]
-
+    "csv_test",
+    "hello_macro_derive", "timer_future", "zino", "lt", "fighting", "ws_test"]
