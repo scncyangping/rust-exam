@@ -1,19 +1,49 @@
 use chrono::{DateTime, Local};
-pub use instruct::*;
 use sea_orm::sea_query::ConditionExpression;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, DbConn, DbErr, EntityTrait, IdenStatic, IntoActiveModel,
-    PaginatorTrait, Select, SelectModel, Value,
+    ActiveModelTrait, ActiveValue, ColumnTrait, Condition, DbConn, DbErr, EntityTrait, IdenStatic,
+    IntoActiveModel, PaginatorTrait, PrimaryKeyTrait, Select, SelectModel, Value,
 };
 use sea_orm::{Iterable, QueryFilter};
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
+use std::option::Option;
 
-pub use execute::*;
-pub use node::*;
-pub use user::*;
 pub(crate) struct SeaRepo;
 impl SeaRepo {
+    #[allow(dead_code)]
+    pub async fn delete_by_id<E>(db: &DbConn, id: &str) -> anyhow::Result<E::Model>
+        where
+            E: EntityTrait,
+            E::Model: IntoActiveModel<E::ActiveModel>,
+            <E as EntityTrait>::ActiveModel: Send,
+    {
+        let mut model = E::ActiveModel::default();
+
+        E::Column::iter().for_each(|e| {
+            if e.as_str() == FIELD_UPDATED_AT {
+                Self::set_now_time::<E>(&mut model, e)
+            }
+            if e.as_str() == FIELD_ID {
+                model.set(e, Value::String(Some(Box::new(id.to_string()))))
+            }
+            if e.as_str() == FIELD_DELETED {
+                model.set(e, Value::TinyInt(Some(1)))
+            }
+        });
+
+        anyhow::Ok(model.update(db).await?)
+    }
+
+    #[allow(dead_code)]
+    pub async fn remove_by_id<E, T>(db: &DbConn, id: T) -> anyhow::Result<u64>
+        where
+            E: EntityTrait,
+            T: Into<<E::PrimaryKey as PrimaryKeyTrait>::ValueType>,
+    {
+        let res = E::delete_by_id(id).exec(db).await?;
+        anyhow::Ok(res.rows_affected)
+    }
     #[allow(dead_code)]
     pub async fn page_with_default<E>(
         db: &DbConn,
@@ -33,7 +63,11 @@ impl SeaRepo {
                 }
             }
         }
-
+        for e in E::Column::iter() {
+            if e.as_str() == FIELD_DELETED {
+                ens = ens.filter(Condition::all().add(e.eq(0)));
+            }
+        }
         let ens = ens.paginate(db, pg.1);
 
         let count = ens.num_items().await?;
@@ -140,6 +174,7 @@ impl SeaRepo {
 const FIELD_ID: &str = "id";
 const FIELD_CREATED_AT: &str = "created_at";
 const FIELD_UPDATED_AT: &str = "updated_at";
+const FIELD_DELETED: &str = "deleted";
 
 fn default_id() -> String {
     uuid::Uuid::new_v4().to_string()
