@@ -1,7 +1,9 @@
 //! process
 
+use crate::recording::Recorder;
+use crate::{Execute, Item, PreMatchTypeEnum};
 use bytes::{Bytes, BytesMut};
-use genesis_common::{EventSubscription, NotifyEnum, TargetSSHOptions};
+use genesis_common::{EventSubscription, NotifyEnum, TargetSSHOptions, TaskStatusEnum};
 use genesis_ssh::start_ssh_connect;
 use std::io::Write;
 use std::iter::once;
@@ -9,15 +11,13 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::watch::Receiver;
+use tokio::time::Instant;
 use tokio::{
     select,
     sync::{mpsc::unbounded_channel, watch, Mutex, RwLock},
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use uuid::Uuid;
-
-use crate::recording::Recorder;
-use crate::{Execute, Item, PreMatchTypeEnum};
 
 #[derive(Clone, Default)]
 enum PipeState {
@@ -82,12 +82,12 @@ impl PipeManger {
                 flag = abort_in_io.changed() => match flag {
                     Ok(_) => {
                         if *abort_in_io.borrow() {
-                            info!("interactive receive abort signal");
+                            debug!(session_id=%self.uniq_id,"do_process_in receive abort signal");
                             return ;
                         }
                     },
                     Err(e) => {
-                        info!("interactive receive abort signal error: {:?}",e);
+                        error!(session_id=%self.uniq_id,"do_process_in receive abort signal error: {:?}",e);
                         return ;
                     },
                 },
@@ -106,7 +106,7 @@ impl PipeManger {
                                     tokio::time::sleep(Duration::from_millis(20)).await;
                                     now_wait_time += 1;
                                     if now_wait_time >= wait_times {
-                                        info!("time out, break");
+                                        debug!(session_id=%self.uniq_id,"do_process_in time out, break");
                                         break;
                                     }
                                 },
@@ -115,7 +115,7 @@ impl PipeManger {
                         let _ = out_io_sender.send(data);
                     },
                     None => {
-                        info!("receive none");
+                        error!(session_id=%self.uniq_id,"do_process_in receive none");
                         break
                     },
                 }
@@ -203,11 +203,12 @@ impl PipeManger {
                 flag = abort_rc.changed() => match flag {
                     Ok(_) => {
                         if *abort_rc.borrow() {
-                            info!("do_process_out receive abort signal");
+                            debug!(session_id=%self.uniq_id,"do_process_out receive abort signal");
                             return ;
                         }
                     },
-                    Err(_) => {
+                    Err(e) => {
+                        error!(session_id=%self.uniq_id,"do_process_out receive abort signal receive error: {:?}",e);
                         return ;
                     },
                 }
@@ -302,6 +303,10 @@ pub struct ProcessManger {
     pub abort_rc: watch::Receiver<bool>,
     pub broadcast_sender: broadcast::Sender<ExecuteState>,
     pub broadcast_receiver: broadcast::Receiver<ExecuteState>,
+
+    // run time param
+    execute_info: Arc<Mutex<Option<String>>>,
+    cmd_expire_time: Arc<Mutex<Option<Instant>>>,
 }
 
 impl ProcessManger {
@@ -317,6 +322,8 @@ impl ProcessManger {
             abort_sc,
             ssh_cmd_wait_times: 100,
             recorder: Arc::new(Mutex::new(None)),
+            cmd_expire_time: Arc::new(Mutex::new(None)),
+            execute_info: Arc::new(Mutex::new(None)),
         })
     }
     pub fn with_default_recorder(mut self) -> anyhow::Result<Self> {
@@ -329,6 +336,23 @@ impl ProcessManger {
         )?)));
         anyhow::Ok(self)
     }
+    pub fn with_recorder_param(
+        mut self,
+        save_path: &str,
+        term: &str,
+        height: u8,
+        width: u8,
+    ) -> anyhow::Result<Self> {
+        self.recorder = Arc::new(Mutex::new(Some(Recorder::new(
+            &self.uniq_id,
+            save_path,
+            term,
+            height,
+            width,
+        )?)));
+        anyhow::Ok(self)
+    }
+
     pub fn with_recorder(&mut self, recorder: Recorder) -> &mut Self {
         self.recorder = Arc::new(Mutex::new(Some(recorder)));
         self
@@ -345,23 +369,49 @@ impl ProcessManger {
         self.abort_sc.clone()
     }
 
-    pub fn stop_process(&self) -> anyhow::Result<()> {
-        anyhow::Ok(self.abort_sc.send(true)?)
+    pub fn stop_process(&self) {
+        match self.abort_sc.send(true) {
+            Ok(_) => {}
+            Err(e) => {
+                error!(session_id=%self.uniq_id,"execute:{} abort signal error:{}", self.uniq_id, e);
+            }
+        }
+    }
+
+    async fn set_cmd_expire_time(&self, expire_secs: u64) {
+        let mut expire_time = self.cmd_expire_time.lock().await;
+        *expire_time = Some(Instant::now() + Duration::from_secs(expire_secs))
+    }
+
+    async fn check_cmd_expire_time(&self) -> bool {
+        self.cmd_expire_time
+            .lock()
+            .await
+            .map(|t| Instant::now().ge(&t))
+            .unwrap_or(false)
+    }
+
+    async fn set_execute_info(&self, info: String) {
+        *self.execute_info.lock().await = Some(info);
+    }
+
+    async fn get_execute_info(&self) -> Option<String> {
+        self.execute_info.lock().await.clone()
     }
 
     async fn wait_ssh_state(&self, mut notify: watch::Receiver<NotifyEnum>) -> anyhow::Result<()> {
         match notify.changed().await {
             Ok(_) => match *notify.borrow() {
                 NotifyEnum::ERROR(ref e) => {
-                    info!("connect error: {}", e);
+                    debug!(session_id=%self.uniq_id,"connect error: {}", e);
                     anyhow::bail!(e.clone());
                 }
                 _ => {
-                    info!("connect success")
+                    debug!(session_id=%self.uniq_id,"connect success")
                 }
             },
             Err(e) => {
-                info!("handler_ssh receive abort signal error: {:?}", e);
+                error!(session_id=%self.uniq_id,"handler_ssh receive abort signal error: {:?}", e);
                 anyhow::bail!(e.to_string());
             }
         };
@@ -379,12 +429,12 @@ impl ProcessManger {
                     flag = abort_tx.changed() => match flag {
                             Ok(_) => {
                                 if *abort_tx.borrow() {
-                                    info!("do_recording receive abort signal");
+                                    debug!(session_id=%self.uniq_id,"do_recording receive abort signal");
                                     break ;
                                 }
                             },
                             Err(e) => {
-                                info!("do_recording receive abort signal error: {:?}",e);
+                                error!(session_id=%self.uniq_id,"do_recording receive abort signal error: {:?}",e);
                                 break ;
                             },
                         },
@@ -394,7 +444,7 @@ impl ProcessManger {
                             match recorder.write_all(bytes.as_ref()) {
                                 Ok(_) => {},
                                 Err(e) => {
-                                    error!("do_recording write error: {:?}",e);
+                                    error!(session_id=%self.uniq_id,"do_recording write error: {:?}",e);
                                     break;
                                 }
                             }
@@ -406,7 +456,11 @@ impl ProcessManger {
         }
     }
     #[allow(dead_code)]
-    pub async fn run(&mut self, uuid: Uuid, ssh_option: TargetSSHOptions) -> anyhow::Result<()> {
+    pub async fn run(
+        &mut self,
+        uuid: Uuid,
+        ssh_option: TargetSSHOptions,
+    ) -> anyhow::Result<genesis_common::TaskStatusEnum> {
         let (hub, sender, notify) = start_ssh_connect(uuid, ssh_option).await?;
         // step1. wait until ssh connected
         self.wait_ssh_state(notify).await?;
@@ -436,11 +490,14 @@ impl ProcessManger {
         // step6. stop type check
         let old = self.abort_rc.clone();
         if *old.borrow() {
-            anyhow::bail!("outer stop")
+            self.get_execute_info()
+                .await
+                .map(|s| anyhow::bail!(s))
+                .unwrap_or(anyhow::Ok(TaskStatusEnum::ManualStop))
         } else {
             let _ = self.abort_sc.send(true);
-            info!("end execute:{}", self.uniq_id);
-            anyhow::Ok(())
+            debug!(session_id=%self.uniq_id,"end execute:{}", self.uniq_id);
+            anyhow::Ok(TaskStatusEnum::Success)
         }
     }
 
@@ -471,23 +528,34 @@ impl ProcessManger {
                 ma = cmd_executor.recv() => match ma {
                         Some(execute) => {
                         let exe = execute.lock().await.clone();
+                        let execute_node_info = format!("node[id:{} des:{}]",exe.node.id,exe.node.core.des);
                         let mut cmd = exe.node.core.cmd.clone();
                         if !cmd.ends_with('\r') {
                             cmd.push('\r');
                         }
                         // 发送命令到远程执行
-                        info!("send node:{} cmd:{}", exe.node.id, cmd);
+                        debug!(session_id=%self.uniq_id,"send node:{} cmd:{}", exe.node.id, cmd);
                         let _ = sc.send(cmd.into());
+                        // 超时配置校验
+                        if exe.node.core.expire > 0 {
+                            self.set_cmd_expire_time(exe.node.core.expire).await;
+                        }
                         // 执行完毕,根据子节点配置pre数据,判断需要走哪条分支
                         if exe.children.is_empty() {
                             return;
                         }
                         let execute_fns = do_next_match(exe).await;
                         //存在子节点,等待子节点匹配
-                        self.cmd_wait_loop(res.clone(),state.clone(),&execute_fns,&cmd_sender).await;
+                        if self.cmd_wait_loop(res.clone(),state.clone(),&execute_fns,&cmd_sender).await{
+                            // 超时记录
+                            self.set_execute_info(format!("execute expired for node:{}",execute_node_info)).await;
+                            // 发送停止信号
+                            self.stop_process();
+                            break;
+                        }
                     }
                     None => {
-                        info!("stop execute cmd");
+                        debug!(session_id=%self.uniq_id,"do_cmd_process cmd_executor receive none");
                         break;
                     }
                 }
@@ -501,63 +569,73 @@ impl ProcessManger {
         state: Arc<RwLock<PipeState>>,
         execute_fns: &RwLock<Vec<ExecuteFns>>,
         cmd_sender: &UnboundedSender<Arc<Mutex<Execute>>>,
-    ) {
+    ) -> bool {
         let mut abort_execute_cmd = self.abort_rc.clone();
         let mut subscribe = self.register_state_watcher();
+        let mut expired = false;
         loop {
             select! {
                 flag = abort_execute_cmd.changed() => match flag {
                     Ok(_) => {
                         if *abort_execute_cmd.borrow() {
-                            info!("cmd execute loop receive abort signal");
-                            return; // 如果收到中止命令，退出
+                            debug!(session_id=%self.uniq_id,"cmd execute loop receive abort signal");
+                            break; // 如果收到中止命令，退出
                         }
                     },
                     Err(e) => {
-                        info!("cmd execute loop receive abort signal error: {:?}",e);
-                        return
+                        error!(session_id=%self.uniq_id,"cmd execute loop receive abort signal error: {:?}",e);
+                        break
                     },
                 },
                 _ = tokio::time::sleep(Duration::from_secs(3)) => {
+                    if self.check_cmd_expire_time().await {
+                        expired = true;
+                        break;
+                    }
                     let content = &res.lock().await.screen().contents(); // 获取屏幕内容
-                    info!("receive content: {}", content);
+                    debug!(session_id=%self.uniq_id,"receive content: {}", content);
                     match process_execute_fns(execute_fns, content, cmd_sender, &state).await{
                         Ok(_) => {
-                            info!("time stop loop");
+                            debug!(session_id=%self.uniq_id,"time stop loop");
                             break;
                         },
                         Err(_) => {
-                            info!("time all not match content:{}\n",content);
+                            debug!(session_id=%self.uniq_id,"time all not match content:{}\n",content);
                         },
                     }
                 },
                 ma = subscribe.recv() => match ma {
                     Ok(execute_state) => match execute_state{
                          ExecuteState::ExecutedCmd(md) => {
+                            if self.check_cmd_expire_time().await {
+                                expired = true;
+                                break;
+                            }
                             let content = md.output.clone();
-                            info!("receive cmd: {:?}", md);
+                            debug!(session_id=%self.uniq_id,"receive cmd: {:?}", md);
                             match process_execute_fns(execute_fns, &content, cmd_sender, &state).await{
                                 Ok(_) => {
-                                    info!("cmd stop loop");
+                                    debug!(session_id=%self.uniq_id,"cmd stop loop");
                                     break;
                                 },
                                 Err(_) => {
-                                    info!("cmd all not match content:{}\n",content);
+                                    error!(session_id=%self.uniq_id,"cmd all not match content:{}\n",content);
                                 },
                             }
                         }
                         ExecuteState::End(_)=> {
-                            info!("receive execute end signal stop.");
-                            return
+                            debug!(session_id=%self.uniq_id,"receive execute end signal stop.");
+                            break
                         }
                         _ => {}
                         },
                     Err(e)=>{
-                       error!("receive execute end signal err: {:?}",e);
+                       error!(session_id=%self.uniq_id,"receive execute end signal err: {:?}",e);
                     }
                 }
             }
         }
+        expired
     }
 }
 
@@ -663,6 +741,7 @@ mod tests {
                     core: Core {
                         des: "判断是否是home目录".to_string(),
                         cmd: "pwd".to_string(),
+                        expire: 0,
                     },
                     post: None,
                     position: Position::default(),
@@ -678,6 +757,7 @@ mod tests {
                     core: Core {
                         des: "home目录执行密码变更".to_string(),
                         cmd: "passwd".to_string(),
+                        expire: 0,
                     },
                     post: None,
                     position: Position::default(),
@@ -693,6 +773,7 @@ mod tests {
                     core: Core {
                         des: "root目录直接退出".to_string(),
                         cmd: "exit".to_string(),
+                        expire: 0,
                     },
                     post: None,
                     position: Position::default(),
@@ -708,6 +789,7 @@ mod tests {
                     core: Core {
                         des: "输入当前密码".to_string(),
                         cmd: old_password.to_string(),
+                        expire: 0,
                     },
                     post: None,
                     position: Position::default(),
@@ -723,6 +805,7 @@ mod tests {
                     core: Core {
                         des: "输入新密码".to_string(),
                         cmd: new_password.to_string(),
+                        expire: 0,
                     },
                     post: None,
                     position: Position::default(),
@@ -738,6 +821,7 @@ mod tests {
                     core: Core {
                         des: "确认新密码".to_string(),
                         cmd: new_password.to_string(),
+                        expire: 0,
                     },
                     post: None,
                     position: Position::default(),
@@ -753,6 +837,7 @@ mod tests {
                     core: Core {
                         des: "退出".to_string(),
                         cmd: "exit".to_string(),
+                        expire: 0,
                     },
                     post: None,
                     position: Position::default(),
