@@ -4,7 +4,7 @@ pub mod gen_pass;
 use crate::process::{b64::{b64_decode, b64_encode}, csv_convert::do_convert, gen_pass::gen_pass_with_length};
 use b64::Base64OpCmd;
 use clap::{Parser, Subcommand};
-use cli_csv::CsvOption;
+use cli_csv::CsvOpts;
 use gen_pass::GenPass;
 
 // template csv -i input.csv -o out.json -d ','
@@ -18,7 +18,7 @@ pub struct Options {
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     #[command(name = "csv", about = "csv command des")]
-    Csv(CsvOption),
+    Csv(CsvOpts),
     #[command(name = "genpass")]
     GeneratePassword(GenPass),
     #[clap(name = "b64", subcommand)]

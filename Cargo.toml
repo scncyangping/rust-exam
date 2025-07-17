@@ -39,4 +39,4 @@ members = [
     "stu",
     "hello_macro",
     "csv_test",
-    "hello_macro_derive", "timer_future", "zino", "lt", "fighting", "ws_test", "sea_orm_common"]
+    "hello_macro_derive", "timer_future", "zino", "lt", "fighting", "ws_test"]
